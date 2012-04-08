@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include "helpers.h"
+#include <deque>
 
 #define DRUMAX 10000
 
@@ -20,6 +21,10 @@ int main (int argc, char ** argv)
 	int gata = FALSE;
 	msg mesaj;
 	int cit, k;
+
+	deque<msg> coada;		//coada mesaje
+	int LSADatabase[KIDS][KIDS] = {{0}};
+	int topologie[KIDS][KIDS] = {{0}};
 
 	//nu modificati numele, modalitatea de alocare si initializare a tabelei de rutare - se foloseste la mesajele de tip 8/10, deja implementate si la logare
 	int tab_rutare [KIDS][2]; //tab_rutare[k][0] reprezinta costul drumului minim de la ruterul curent (nod_id) la ruterul k

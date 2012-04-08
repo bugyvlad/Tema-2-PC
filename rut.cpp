@@ -11,6 +11,20 @@
 
 using namespace std;
 
+// Verifica daca exista un mesaj mai vechi in coada, si inlocuieste-l
+// Altfel, daca nu exista, il baga in coada; Altfel, drop
+void adauga_mesaj ( deque<msg>& coada, msg mesaj ) {
+	for (unsigned int i = 0; i < coada.size(); ++i) {
+		if (coada[i].creator == mesaj.creator && coada[i].type == mesaj.type &&
+			coada[i].nr_secv < mesaj.nr_secv) {
+
+			coada[i] = mesaj;
+			return;
+		}
+	}
+	coada.push_back(mesaj);
+}
+
 int main (int argc, char ** argv)
 {
 
@@ -23,7 +37,7 @@ int main (int argc, char ** argv)
 	int cit, k;
 
 	deque<msg> coada;		//coada mesaje
-	int LSADatabase[KIDS][KIDS] = {{0}};
+	msg LSADatabase[KIDS][KIDS] = {{{0}}};
 	int topologie[KIDS][KIDS] = {{0}};
 
 	//nu modificati numele, modalitatea de alocare si initializare a tabelei de rutare - se foloseste la mesajele de tip 8/10, deja implementate si la logare
@@ -60,19 +74,23 @@ int main (int argc, char ** argv)
 			//actiunea imediata corecta la primirea unui pachet de tip 1,2,3,4 este buffer-area (punerea in coada /coada new daca sunt 2 cozi - vezi enunt)
 			//mesajele din coada new se vor procesa atunci cand ea devine coada old (cand am intrat in urmatorul pas de timp)
 			case 1:
-				//printf ("Timp %d, Nod %d, msg tip 1 - LSA\n", timp, nod_id);
+				printf ("Timp %d, Nod %d, msg tip 1 - LSA\n", timp, nod_id);
+				adauga_mesaj ( coada, mesaj );
 				break;
 
 			case 2:
-				//printf ("Timp %d, Nod %d, msg tip 2 - Database Request\n", timp, nod_id);
+				printf ("Timp %d, Nod %d, msg tip 2 - Database Request\n", timp, nod_id);
+				adauga_mesaj ( coada, mesaj );
 				break;
 
 			case 3:
-				//printf ("Timp %d, Nod %d, msg tip 3 - Database Reply\n", timp, nod_id);
+				printf ("Timp %d, Nod %d, msg tip 3 - Database Reply\n", timp, nod_id);
+				adauga_mesaj ( coada, mesaj );
 				break;
 
 			case 4:
-				//printf ("Timp %d, Nod %d, msg tip 4 - pachet de date (de rutat)\n", timp, nod_id);
+				printf ("Timp %d, Nod %d, msg tip 4 - pachet de date (de rutat)\n", timp, nod_id);
+				adauga_mesaj ( coada, mesaj );
 				break;
 
 			case 6://complet in ceea ce priveste partea cu mesajele de control

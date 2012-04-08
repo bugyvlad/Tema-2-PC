@@ -11,6 +11,15 @@
 
 using namespace std;
 
+typedef struct load_ {
+	int nr_vec;				// Numar vecini
+	int lista_vecini[KIDS];	// Lista vecini
+	int cost[KIDS];			// Costuri vecini
+	int destinatie;
+	int cost_drum;
+	int timp_creare;
+}load;
+
 // Verifica daca exista un mesaj mai vechi in coada, si inlocuieste-l
 // Altfel, daca nu exista, il baga in coada; Altfel, drop
 void adauga_mesaj ( deque<msg>& coada, msg mesaj ) {
@@ -37,8 +46,9 @@ int main (int argc, char ** argv)
 	int cit, k;
 
 	deque<msg> coada;		//coada mesaje
-	msg LSADatabase[KIDS][KIDS] = {{{0}}};
+	msg LSADatabase[KIDS] = {{0}};
 	int topologie[KIDS][KIDS] = {{0}};
+	int secv = 1;			// Numar secventa unic per router
 
 	//nu modificati numele, modalitatea de alocare si initializare a tabelei de rutare - se foloseste la mesajele de tip 8/10, deja implementate si la logare
 	int tab_rutare [KIDS][2]; //tab_rutare[k][0] reprezinta costul drumului minim de la ruterul curent (nod_id) la ruterul k
@@ -98,21 +108,60 @@ int main (int argc, char ** argv)
 					//aveti de implementat procesarea mesajelor ce tin de protocolul de rutare
 				{
 				timp++;
-				//printf ("Timp %d, Nod %d, msg tip 6 - incepe procesarea mesajelor puse din coada la timpul anterior (%d)\n", timp, nod_id, timp-1);
+				printf ("Timp %d, Nod %d, msg tip 6 - incepe procesarea mesajelor puse din coada la timpul anterior (%d)\n", timp, nod_id, timp-1);
 
 				//veti modifica ce e mai jos -> in scheletul de cod nu exista nicio coada
-				int coada_old_goala = TRUE;
+//				int coada_old_goala = TRUE;
 
 				//daca NU mai am de procesat mesaje venite la timpul anterior
 				//(dar mai pot fi mesaje venite in acest moment de timp, pe care le procesez la t+1)
 				//trimit mesaj terminare procesare pentru acest pas (tip 5)
 				//altfel, procesez mesajele venite la timpul anterior si apoi trimit mesaj de tip 5
-				while (!coada_old_goala) {
+//				while (!coada_old_goala) {
+				while ( !coada.empty() ) {
 					//	procesez tote mesajele din coada old
 					//	(sau toate mesajele primite inainte de inceperea timpului curent - marcata de mesaj de tip 6)
 					//	la acest pas/timp NU se vor procesa mesaje venite DUPA inceperea timpului curent
 //cand trimiteti mesaje de tip 4 nu uitati sa setati (inclusiv) campurile, necesare pt logare:  mesaj.timp, mesaj.creator, mesaj.nr_secv, mesaj.sender, mesaj.next_hop
 					//la tip 4 - creator este sursa initiala a pachetului rutat
+
+					msg temp = coada.front();
+					coada.pop_front();
+					switch ( temp.type ) {
+						case 1:
+							{
+								printf("Procesez type 1 creator %d \n", temp.creator);
+								if ( LSADatabase[temp.creator].nr_secv < temp.nr_secv ) {
+									// Updatez LSADatabase
+									LSADatabase[temp.creator] = temp;
+
+									load incarcatura;		// Load temporar
+									int tipev, id_ruter;
+									sscanf(temp.payload, "%d %d %d", &tipev, &id_ruter, &incarcatura.nr_vec);
+									for (int i = 0; i < incarcatura.nr_vec; ++i)
+										sscanf(temp.payload, "%d %d", &incarcatura.lista_vecini[i], &incarcatura.cost[i]);
+									
+								}
+							}
+							break;
+						case 2:
+							{
+							
+							}
+							break;
+						case 3:
+							{
+							
+							}
+							break;
+						case 4:
+							{
+							
+							}
+							break;
+						default:
+							break;
+					}
 				}
 
 				//acum coada_old e goala, trimit mesaj de tip 5

@@ -6,8 +6,11 @@
 #include <fcntl.h>
 #include "helpers.h"
 #include <deque>
+#include <sstream>
+#include <iostream>
 
 #define DRUMAX 10000
+#define MAX_LONG 2147483647
 
 using namespace std;
 
@@ -25,9 +28,8 @@ typedef struct load_ {
 void adauga_mesaj ( deque<msg>& coada, msg mesaj ) {
 	for (unsigned int i = 0; i < coada.size(); ++i) {
 		if (coada[i].creator == mesaj.creator && coada[i].type == mesaj.type &&
-			coada[i].nr_secv < mesaj.nr_secv) {
+			coada[i].nr_secv == mesaj.nr_secv) {
 
-			coada[i] = mesaj;
 			return;
 		}
 	}
@@ -45,9 +47,10 @@ int main (int argc, char ** argv)
 	msg mesaj;
 	int cit, k;
 
-	deque<msg> coada;		//coada mesaje
+	deque<msg> coada_old;		//coada mesaje vechi
+	deque<msg> coada_new;		//coada mesaje noi
 	msg LSADatabase[KIDS] = {{0}};
-	int topologie[KIDS][KIDS] = {{0}};
+	int topologie[KIDS][KIDS] = {{MAX_LONG}};
 	int secv = 1;			// Numar secventa unic per router
 
 	//nu modificati numele, modalitatea de alocare si initializare a tabelei de rutare - se foloseste la mesajele de tip 8/10, deja implementate si la logare
@@ -85,22 +88,22 @@ int main (int argc, char ** argv)
 			//mesajele din coada new se vor procesa atunci cand ea devine coada old (cand am intrat in urmatorul pas de timp)
 			case 1:
 				printf ("Timp %d, Nod %d, msg tip 1 - LSA\n", timp, nod_id);
-				adauga_mesaj ( coada, mesaj );
+				adauga_mesaj ( coada_new, mesaj );
 				break;
 
 			case 2:
 				printf ("Timp %d, Nod %d, msg tip 2 - Database Request\n", timp, nod_id);
-				adauga_mesaj ( coada, mesaj );
+				adauga_mesaj ( coada_new, mesaj );
 				break;
 
 			case 3:
 				printf ("Timp %d, Nod %d, msg tip 3 - Database Reply\n", timp, nod_id);
-				adauga_mesaj ( coada, mesaj );
+				adauga_mesaj ( coada_new, mesaj );
 				break;
 
 			case 4:
 				printf ("Timp %d, Nod %d, msg tip 4 - pachet de date (de rutat)\n", timp, nod_id);
-				adauga_mesaj ( coada, mesaj );
+				adauga_mesaj ( coada_new, mesaj );
 				break;
 
 			case 6://complet in ceea ce priveste partea cu mesajele de control
@@ -118,30 +121,36 @@ int main (int argc, char ** argv)
 				//trimit mesaj terminare procesare pentru acest pas (tip 5)
 				//altfel, procesez mesajele venite la timpul anterior si apoi trimit mesaj de tip 5
 //				while (!coada_old_goala) {
-				while ( !coada.empty() ) {
+				
+				coada_old = coada_new;
+				coada_new.clear();
+				
+				while ( !coada_old.empty() ) {
 					//	procesez tote mesajele din coada old
 					//	(sau toate mesajele primite inainte de inceperea timpului curent - marcata de mesaj de tip 6)
 					//	la acest pas/timp NU se vor procesa mesaje venite DUPA inceperea timpului curent
 //cand trimiteti mesaje de tip 4 nu uitati sa setati (inclusiv) campurile, necesare pt logare:  mesaj.timp, mesaj.creator, mesaj.nr_secv, mesaj.sender, mesaj.next_hop
 					//la tip 4 - creator este sursa initiala a pachetului rutat
 
-					msg temp = coada.front();
-					coada.pop_front();
+					msg temp = coada_old.front();
+					coada_old.pop_front();
 					switch ( temp.type ) {
 						case 1:
 							{
-								printf("Procesez type 1 creator %d \n", temp.creator);
-								if ( LSADatabase[temp.creator].nr_secv < temp.nr_secv ) {
-									// Updatez LSADatabase
-									LSADatabase[temp.creator] = temp;
+//								printf("Procesez type 1 creator %d \n", temp.creator);
+//								if ( LSADatabase[temp.creator].nr_secv < temp.nr_secv ) {
+//									// Updatez LSADatabase
+//									LSADatabase[temp.creator] = temp;
 
-									load incarcatura;		// Load temporar
-									int tipev, id_ruter;
-									sscanf(temp.payload, "%d %d %d", &tipev, &id_ruter, &incarcatura.nr_vec);
-									for (int i = 0; i < incarcatura.nr_vec; ++i)
-										sscanf(temp.payload, "%d %d", &incarcatura.lista_vecini[i], &incarcatura.cost[i]);
-									
-								}
+//									load incarcatura;		// Load temporar
+//									int tipev, id_ruter;
+//									sscanf(temp.payload, "%d %d %d", &tipev, &id_ruter, &incarcatura.nr_vec);
+//									for (int i = 0; i < incarcatura.nr_vec; ++i) {
+//										sscanf(temp.payload, "%d %d", &incarcatura.lista_vecini[i], &incarcatura.cost[i]);
+//										topologie[nod_id][incarcatura.lista_vecini[i]] = incarcatura.cost[i];
+//										topologie[incarcatura.lista_vecini[i]][nod_id] = incarcatura.cost[i];
+//									}
+//								}
 							}
 							break;
 						case 2:
@@ -185,6 +194,74 @@ int main (int argc, char ** argv)
 				if (mesaj.join == TRUE) {
 					timp = mesaj.timp;
 					printf ("Nod %d, msg tip eveniment - voi adera la topologie la pasul %d\n", nod_id, timp+1);
+					
+					stringstream ss (stringstream::in | stringstream::out);
+					ss << mesaj.payload;
+					int ev, nr_vec, id_rut_nou;
+					int vec, cost;
+					ss >> ev >> id_rut_nou >> nr_vec;
+					cout << "-----Ev " << ev << " id_rut_nou " << id_rut_nou << " nr_vec " << nr_vec << endl;
+					for (int i = 0; i < nr_vec; ++i){
+						ss >> vec >> cost;
+						cout << "---Vecin " << vec << " cu cost " << cost << endl;
+						
+						stringstream ssout (stringstream::in | stringstream::out);
+						ssout << cost;
+						
+//						cout << "!!!!!!!!!!!!!TEST nod_id " << nod_id << endl;
+						// Trimit Database Request catre vecini
+						msg newmsg;
+						newmsg.type = 2;
+						newmsg.sender = nod_id;
+						newmsg.timp = timp;
+						newmsg.creator = nod_id;
+						newmsg.next_hop = vec;
+						newmsg.nr_secv = secv++;
+						ssout >> newmsg.payload;
+//						cout << "=========newmsg.nr_secv " << newmsg.nr_secv << endl;
+//						cout << "=========newmsg.payload [" << newmsg.payload << "]\n";
+						
+						write (pipeout, &newmsg, sizeof(msg));
+					}
+				}
+				else if (mesaj.payload[0] == '2') {
+					timp = mesaj.timp;
+					printf ("Nod %d, msg tip eveniment - voi auga link la pasul %d\n", nod_id, timp+1);
+					
+					stringstream ss (stringstream::in | stringstream::out);
+					ss << mesaj.payload;
+					int ev, rut1, rut2, cost;
+					ss >> ev >> rut1 >> rut2 >> cost;
+					
+					stringstream ssout (stringstream::in | stringstream::out);
+					ssout << cost;
+					
+					// Trimit Database Request catre celalalt capat
+					msg newmsg;
+					newmsg.type = 2;
+					newmsg.timp = timp;
+					newmsg.nr_secv = secv++;
+					newmsg.creator = nod_id;
+					newmsg.sender= nod_id;
+					ssout >> newmsg.payload;
+					
+					if (nod_id == rut1) {
+						newmsg.next_hop = rut2;
+//						cout << "<<<<Trimit dbreq de la " << nod_id << " catre " << rut2 << endl;
+						write (pipeout, &newmsg, sizeof(msg));
+					}
+					else if (nod_id == rut2) {
+						newmsg.next_hop = rut1;
+//						cout << "<<<<Trimit dbreq de la " << nod_id << " catre " << rut1 << endl;
+						write (pipeout, &newmsg, sizeof(msg));
+					}
+					
+				}
+				else if (mesaj.payload[0] == '3') {
+					
+				}
+				else if (mesaj.payload[0] == '4') {
+					
 				}
 				else
 					printf ("Timp %d, Nod %d, msg tip 7 - eveniment\n", timp+1, nod_id);

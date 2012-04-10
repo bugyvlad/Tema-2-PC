@@ -8,9 +8,11 @@
 #include <deque>
 #include <sstream>
 #include <iostream>
+#include <vector>
 
 #define DRUMAX 10000
 #define MAX_LONG 2147483647
+#define INF MAX_LONG
 
 using namespace std;
 
@@ -36,6 +38,17 @@ void adauga_mesaj ( deque<msg>& coada, msg mesaj ) {
 	coada.push_back(mesaj);
 }
 
+// Afla vecinii unui nod
+void get_vecini ( int topologie[KIDS][KIDS], int nod, vector<pair<int,int> >& vecini ) {
+	for (int i = 0; i < KIDS; ++i) {
+		cout << "topo: ["<<i<<"]["<<nod<<"] "<<topologie[i][nod]<<endl;
+		if (topologie[i][nod] != INF || topologie[nod][i] != INF) {
+//			cout << "topo: ["<<i<<"]["<<nod<<"] "<<topologie[i][nod]<<endl;
+			vecini.push_back(make_pair(i, topologie[i][nod]));
+		}
+	}
+}
+
 int main (int argc, char ** argv)
 {
 
@@ -49,9 +62,18 @@ int main (int argc, char ** argv)
 
 	deque<msg> coada_old;		//coada mesaje vechi
 	deque<msg> coada_new;		//coada mesaje noi
-	msg LSADatabase[KIDS] = {{0}};
-	int topologie[KIDS][KIDS] = {{MAX_LONG}};
+	msg LSADb[KIDS];
+	int topologie[KIDS][KIDS];
 	int secv = 1;			// Numar secventa unic per router
+	
+	// Initializare matrice topologie
+	for (int i = 0; i < KIDS; ++i)
+		for (int j = 0; j < KIDS; ++j)
+			topologie[i][j] = INF;
+
+	// Initializare LSA Database
+	for (int i = 0; i < KIDS; ++i)
+		LSADb[i].type = -1;
 
 	//nu modificati numele, modalitatea de alocare si initializare a tabelei de rutare - se foloseste la mesajele de tip 8/10, deja implementate si la logare
 	int tab_rutare [KIDS][2]; //tab_rutare[k][0] reprezinta costul drumului minim de la ruterul curent (nod_id) la ruterul k
@@ -258,7 +280,58 @@ int main (int argc, char ** argv)
 					
 				}
 				else if (mesaj.payload[0] == '3') {
+					timp = mesaj.timp;
+					printf ("Nod %d, msg tip eveniment - voi rupe link la pasul %d\n", nod_id, timp+1);
 					
+					stringstream ss (stringstream::in | stringstream::out);
+					ss << mesaj.payload;
+					int ev, rut1, rut2;
+					ss >> ev >> rut1 >> rut2;
+					
+					vector<pair<int,int> > vecini;
+					get_vecini ( topologie, nod_id, vecini );
+					
+					// Introduc lista de vecini+costuri in ssout
+					stringstream ssout (stringstream::in | stringstream::out);
+					for (int i = 0; i < vecini.size(); ++i)
+						ssout << vecini[i].first << " " << vecini[i].second << " ";
+					
+					// Atasez si timpul de creare
+					cout << timp << " ";
+					ssout << timp;
+//					cout << "Nod " << nod_id <<" vecini costuri : {"<<ssout.str()<<"}\n";
+					
+					msg lsa;
+					lsa.creator = nod_id;
+					lsa.timp = timp;
+					lsa.sender = nod_id;
+					lsa.nr_secv = secv++;
+					ssout.getline(lsa.payload, 1400);
+					cout << "Nod " << nod_id <<" vecini costuri : {"<<lsa.payload<<"}\n";
+					
+					// Updatez topologia pentru rut1
+					if (nod_id == rut1) {
+						topologie[nod_id][rut2] = INF;
+						topologie[rut2][nod_id] = INF;
+						
+						
+						for (int i = 0; i < vecini.size(); ++i) {
+							lsa.next_hop = vecini[i].first;
+							
+							write(pipeout, &lsa, sizeof(msg));
+						}
+					}
+					// Updatez topologia pentru rut2
+					else if (nod_id == rut2) {
+						topologie[nod_id][rut1] = INF;
+						topologie[rut1][nod_id] = INF;
+						
+						for (int i = 0; i < vecini.size(); ++i) {
+							lsa.next_hop = vecini[i].first;
+							
+							write(pipeout, &lsa, sizeof(msg));
+						}
+					}
 				}
 				else if (mesaj.payload[0] == '4') {
 					

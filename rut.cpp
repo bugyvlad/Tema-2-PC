@@ -37,7 +37,9 @@ void adauga_mesaj ( deque<msg>& coada, msg mesaj ) {
 // Afla vecinii unui nod
 void get_vecini ( int topologie[KIDS][KIDS], int nod, vector<pair<int,int> >& vecini ) {
 	for (int i = 0; i < KIDS; ++i) {
+		#ifdef DEBUG
 		cout << "topo: ["<<i<<"]["<<nod<<"] "<<topologie[i][nod]<<endl;
+		#endif
 		if ( (topologie[i][nod] != INF || topologie[nod][i] != INF) && i != nod) {
 //			cout << "topo: ["<<i<<"]["<<nod<<"] "<<topologie[i][nod]<<endl;
 			vecini.push_back(make_pair(i, topologie[i][nod]));
@@ -302,7 +304,7 @@ int main (int argc, char ** argv)
 								tosend.type = 3;
 								tosend.sender = nod_id;
 								tosend.timp = timp;
-								tosend.next_hop = i;
+								tosend.next_hop = temp.creator;
 								
 								#ifdef DEBUG
 								cout << "Timp "<<timp <<"LSA-payload trimis de catre " << nod_id << " lui " << i << "{";

@@ -1,3 +1,35 @@
 *** Constantin Serban-Radoi 323CA ***
 *** Tema 2 Protocoale de Comunicatii ***
 *** Aprilie 2012 ***
+
+Tema consta in implementarea unui simulator de rutare.
+
+Problema rutarii pachetelor consta in faptul ca acestea trebuie sa fie trimise
+mereu pe calea cea mai scurta, insa aceasta se poate schimba de la un pas de timp
+la altul.
+
+Pentru a gasi caile cele mai scurte de la un nod catre celelalte am folosit
+algoritmul Dijkstra, implementat cu seturi.
+
+Pentru a tine mesajele am folosit cozi.
+
+Topologia pentru fiecare router in parte am pastrat-o ca o matrice de adiacenta
+cu costuri, simetrica.
+
+Baza de date cu LSA-uri am tinut-o ca un vector de mesaje. In payload am folosit
+lista de vecini cu costurile aferente, impreuna cu timpul de creare
+
+Mesajele de tip 1 si 3 le-am procesat simultan, cu singura diferenta ca doar
+mesajele de tip 1 le-am forwardat. Pentru mesajele de tip 2 am trimis intai
+database reply, apoi am verificat daca timpul de creare nou este mai vechi decat
+cel curent, iar daca da, am updatat LSADatabase si topologia corespunzator si trimit
+LSA catre vecini.
+Mesajele de tip 4 doar le-am forwardat conform tabelei de rutare.
+
+La finalul procesarii mesajelor am apelat Dijkstra pentru a recalcula tabela.
+
+Pentru evenimentul de tip 1 am parsat payload-ul si am trimis Database Request
+catre vecini, restul actiunilor facandu-se in timpul procesarii measjelor
+Pentru evenimentul de tip 2 similar am parsat inputul.
+Evenimentul 3 parseaza payload-ul, updateaza topologia, creeaza LSA, updateaza
+lsadb si trimite lsa catre vecini. In fine, updateaza si tabela de rutare.

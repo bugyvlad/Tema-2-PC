@@ -8,7 +8,9 @@
 #include <deque>
 #include <sstream>
 #include <iostream>
+#include <fstream>
 #include <vector>
+#include <string>
 
 #define DRUMAX 10000
 #define MAX_LONG 2147483647
@@ -92,6 +94,24 @@ int main (int argc, char ** argv)
 		if (cit <= 0) {
 			printf ("Adio, lume cruda. Timp %d, Nod %d, msg tip %d cit %d\n", timp, nod_id, mesaj.type, cit);
 			exit (-1);
+		}
+
+		// Debug in 10 fisiere
+		for (int x = 0; x < KIDS; ++x) {
+			fstream f;
+			char str[20];
+			sprintf(str, "debug%d.txt", x);
+			f.open (str, fstream::in | fstream::out | fstream::app);
+			
+			if (nod_id == x) {
+				f << "Timp " << timp << " afisez topologia nodului " << nod_id << endl;
+				for (int i = 0; i < KIDS; ++i) {
+					for (int j = 0; j < KIDS; ++j)
+						f << topologie[i][j] << " ";
+					f << endl;
+				}
+			}
+			f.close();
 		}
 
 		switch (mesaj.type) {
@@ -179,8 +199,10 @@ int main (int argc, char ** argv)
 									}
 									ssold >> timp_creare_old;
 									
+									cout << "~~~~~~~~~timp creare old " <<timp_creare_old<< " t_cr "<<timp_creare<<endl;
+									
 									// Daca timpul de creare al LSA-ului primit este mai vechi, il ignor
-									if ( timp_creare <= timp_creare_old )
+									if ( timp_creare < timp_creare_old )
 										break;
 									
 									// Updatez topologia pentru acel creator
@@ -203,15 +225,15 @@ int main (int argc, char ** argv)
 									}
 									
 									
-									// Daca am mesaj de tip 3 nu mai forwardez
-									if (temp.type == 3)
-										break;
+									
 									
 									cout << "~~~~~~~~Test: nr-vecini " << size << " timp creare " << timp_creare;
 									for (int i = 0; i < size; ++i)
 										cout << " vec " << vecini[i].first << " cost "<<vecini[i].second << "\n";
 								
-									
+									// Daca am mesaj de tip 3 nu mai forwardez
+									if (temp.type == 3)
+										break;
 								
 								}
 							}
@@ -228,16 +250,19 @@ int main (int argc, char ** argv)
 									
 									msg tosend;
 									tosend = LSADb[i];
+									tosend.creator = i;
 									tosend.type = 3;
 									tosend.sender = nod_id;
 									tosend.timp = timp;
 									tosend.next_hop = i;
-									tosend.nr_secv = secv++;
+									
+									cout << "Timp "<<timp <<"LSA-payload trimis de catre " << nod_id << " lui " << i << "{";
+									cout << tosend.payload << "}\n";
 									
 									write(pipeout, &tosend, sizeof(msg));
 								}
 								
-								
+								//TODO solve bullshit with LSA
 								// Creez un LSA propriu si updatez LSADatabase
 								
 								msg lsa;
@@ -266,8 +291,7 @@ int main (int argc, char ** argv)
 								if (!gasit)
 									vecini.push_back(make_pair(temp.creator, cost));
 								
-								msg newlsa;
-								// Creez un nou LSA
+								// Creez payload pentru un nou LSA
 								stringstream ssout (stringstream::in | stringstream::out);
 								ssout << vecini.size() << " ";
 								for (unsigned int i = 0; i < vecini.size(); ++i) {
@@ -275,12 +299,19 @@ int main (int argc, char ** argv)
 								}
 								ssout << timp;		//timpul de creare al lsa-ului
 								
+								cout << "SSSOUUUUTTTT {" << ssout.str() << "}\n";
+								
+								
+								string sir = ssout.str();
+								cout << "SIR {" << sir << "}\n";
+								for (unsigned int i = 0; i < sir.size(); ++i)
+									lsa.payload[i] = sir[i];
+								lsa.payload[sir.size()] = '\0';
+
 								cout << "AM CREAT LSA: nod_id " << nod_id << " payload{" << lsa.payload << "}\n";
 								
-								ssout.getline(newlsa.payload, 1400);
-								
 								// Updatez lsadatabase
-								LSADb[nod_id] = newlsa;
+								LSADb[nod_id] = lsa;
 								
 								// Updatez topologia
 								topologie[nod_id][temp.creator] = cost;
@@ -407,7 +438,7 @@ int main (int argc, char ** argv)
 					// Atasez si timpul de creare
 					cout << timp << " ";
 					ssout << timp;
-//					cout << "Nod " << nod_id <<" vecini costuri : {"<<ssout.str()<<"}\n";
+					cout << "Nod " << nod_id <<" vecini costuri : {"<<ssout.str()<<"}\n";
 					
 					msg lsa;
 					lsa.type = 1;
@@ -415,8 +446,12 @@ int main (int argc, char ** argv)
 					lsa.timp = timp;
 					lsa.sender = nod_id;
 					lsa.nr_secv = secv++;
-					ssout.getline(lsa.payload, 1400);
-//					cout << "Nod " << nod_id <<" vecini costuri : {"<<lsa.payload<<"}\n";
+
+					string sir = ssout.str();
+					for (unsigned int i = 0; i < sir.size(); ++i)
+						lsa.payload[i] = sir[i];
+					lsa.payload[sir.size()] = '\0';
+					cout << "Nod " << nod_id <<" vecini costuri : {"<<lsa.payload<<"}\n";
 					
 					// Updatez topologia pentru rut1
 					if (nod_id == rut1) {

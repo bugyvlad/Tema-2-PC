@@ -16,15 +16,6 @@
 
 using namespace std;
 
-typedef struct load_ {
-	int nr_vec;				// Numar vecini
-	int lista_vecini[KIDS];	// Lista vecini
-	int cost[KIDS];			// Costuri vecini
-	int destinatie;
-	int cost_drum;
-	int timp_creare;
-}load;
-
 // Verifica daca exista un mesaj mai vechi in coada, si inlocuieste-l
 // Altfel, daca nu exista, il baga in coada; Altfel, drop
 void adauga_mesaj ( deque<msg>& coada, msg mesaj ) {
@@ -42,7 +33,7 @@ void adauga_mesaj ( deque<msg>& coada, msg mesaj ) {
 void get_vecini ( int topologie[KIDS][KIDS], int nod, vector<pair<int,int> >& vecini ) {
 	for (int i = 0; i < KIDS; ++i) {
 		cout << "topo: ["<<i<<"]["<<nod<<"] "<<topologie[i][nod]<<endl;
-		if (topologie[i][nod] != INF || topologie[nod][i] != INF) {
+		if ( (topologie[i][nod] != INF || topologie[nod][i] != INF) && i != nod) {
 //			cout << "topo: ["<<i<<"]["<<nod<<"] "<<topologie[i][nod]<<endl;
 			vecini.push_back(make_pair(i, topologie[i][nod]));
 		}
@@ -158,31 +149,150 @@ int main (int argc, char ** argv)
 					coada_old.pop_front();
 					switch ( temp.type ) {
 						case 1:
+						case 3:
 							{
-//								printf("Procesez type 1 creator %d \n", temp.creator);
-//								if ( LSADatabase[temp.creator].nr_secv < temp.nr_secv ) {
-//									// Updatez LSADatabase
-//									LSADatabase[temp.creator] = temp;
-
-//									load incarcatura;		// Load temporar
-//									int tipev, id_ruter;
-//									sscanf(temp.payload, "%d %d %d", &tipev, &id_ruter, &incarcatura.nr_vec);
-//									for (int i = 0; i < incarcatura.nr_vec; ++i) {
-//										sscanf(temp.payload, "%d %d", &incarcatura.lista_vecini[i], &incarcatura.cost[i]);
-//										topologie[nod_id][incarcatura.lista_vecini[i]] = incarcatura.cost[i];
-//										topologie[incarcatura.lista_vecini[i]][nod_id] = incarcatura.cost[i];
-//									}
-//								}
+								printf("Procesez msg type 1-3 creator %d \n", temp.creator);
+								if ( LSADb[temp.creator].nr_secv < temp.nr_secv ) {
+									// Updatez LSADatabase
+									LSADb[temp.creator] = temp;
+									
+									stringstream ss (stringstream::in | stringstream::out);
+									ss << temp.payload;
+									int size, timp_creare, vec, cost;
+									ss >> size;
+									
+									vector<pair<int,int> > vecini;
+									for (int i = 0; i < size; ++i) {
+										ss >> vec >> cost;
+										vecini.push_back(make_pair(vec,cost));
+									}
+									ss >> timp_creare;
+									
+									stringstream ssold (stringstream::in | stringstream::out);
+									int size_old, timp_creare_old, vec_old, cost_old;
+									ssold << LSADb[temp.creator].payload;
+									
+									ssold >> size_old;
+									vector<pair<int,int> > vecini_old;
+									for (int i = 0; i < size; ++i) {
+										ssold >> vec_old >> cost_old;
+									}
+									ssold >> timp_creare_old;
+									
+									// Daca timpul de creare al LSA-ului primit este mai vechi, il ignor
+									if ( timp_creare <= timp_creare_old )
+										break;
+									
+									// Updatez topologia pentru acel creator
+									for (int i = 0; i < KIDS; ++i) {
+										topologie[temp.creator][i] = INF;
+										topologie[i][temp.creator] = INF;
+									}
+									for (unsigned int i = 0; i < vecini.size(); ++i) {
+										topologie[vecini[i].first][temp.creator] = vecini[i].second;
+										topologie[temp.creator][vecini[i].first] = vecini[i].second;
+									}
+									
+									// Forwardez LSA
+									temp.sender = nod_id;
+									temp.timp = timp;
+									for (unsigned int i = 0; i < vecini.size(); ++i) {
+										temp.next_hop = vecini[i].first;
+										
+										write(pipeout, &temp, sizeof(msg));
+									}
+									
+									
+									// Daca am mesaj de tip 3 nu mai forwardez
+									if (temp.type == 3)
+										break;
+									
+									cout << "~~~~~~~~Test: nr-vecini " << size << " timp creare " << timp_creare;
+									for (int i = 0; i < size; ++i)
+										cout << " vec " << vecini[i].first << " cost "<<vecini[i].second << "\n";
+								
+									
+								
+								}
 							}
 							break;
 						case 2:
 							{
-							
-							}
-							break;
-						case 3:
-							{
-							
+								printf("Procesez msg type 2 creator %d \n", temp.creator);
+								
+								
+								// Trimit Database Reply
+								for (int i = 0; i < KIDS; ++i) {
+									if (LSADb[i].type == -1 || nod_id == i)
+										continue;
+									
+									msg tosend;
+									tosend = LSADb[i];
+									tosend.type = 3;
+									tosend.sender = nod_id;
+									tosend.timp = timp;
+									tosend.next_hop = i;
+									tosend.nr_secv = secv++;
+									
+									write(pipeout, &tosend, sizeof(msg));
+								}
+								
+								
+								// Creez un LSA propriu si updatez LSADatabase
+								
+								msg lsa;
+								lsa.type = 1;
+								lsa.creator = nod_id;
+								lsa.sender = nod_id;
+								lsa.timp = timp;
+								lsa.nr_secv = secv++;
+								
+								int cost;
+								stringstream ss (stringstream::in | stringstream::out);
+								ss << temp.payload;
+								ss >> cost;
+								cout << ">>>>>>>>>>>nod_id " << nod_id << " creator " << temp.creator << " cost " << cost << "\n";
+								
+								
+								vector<pair<int,int> > vecini;
+								get_vecini( topologie, nod_id, vecini );
+								bool gasit = false;
+								for (unsigned int i = 0; i < vecini.size(); ++i) {
+									if ( !gasit && vecini[i].first == temp.creator ) {
+										gasit = true;
+										break;
+									}
+								}
+								if (!gasit)
+									vecini.push_back(make_pair(temp.creator, cost));
+								
+								msg newlsa;
+								// Creez un nou LSA
+								stringstream ssout (stringstream::in | stringstream::out);
+								ssout << vecini.size() << " ";
+								for (unsigned int i = 0; i < vecini.size(); ++i) {
+									ssout << vecini[i].first << " " << vecini[i].second << " ";
+								}
+								ssout << timp;		//timpul de creare al lsa-ului
+								
+								cout << "AM CREAT LSA: nod_id " << nod_id << " payload{" << lsa.payload << "}\n";
+								
+								ssout.getline(newlsa.payload, 1400);
+								
+								// Updatez lsadatabase
+								LSADb[nod_id] = newlsa;
+								
+								// Updatez topologia
+								topologie[nod_id][temp.creator] = cost;
+								topologie[temp.creator][nod_id] = cost;
+								
+								// Trimit LSA catre toti vecinii
+								for (unsigned int i = 0; i < vecini.size(); ++i) {
+									lsa.next_hop = vecini[i].first;
+									
+									write(pipeout, &lsa, sizeof(msg));
+								}
+								
 							}
 							break;
 						case 4:
@@ -223,6 +333,13 @@ int main (int argc, char ** argv)
 					int vec, cost;
 					ss >> ev >> id_rut_nou >> nr_vec;
 					cout << "-----Ev " << ev << " id_rut_nou " << id_rut_nou << " nr_vec " << nr_vec << endl;
+					
+					msg newmsg;
+					newmsg.type = 2;
+					newmsg.sender = nod_id;
+					newmsg.timp = timp;
+					newmsg.creator = nod_id;
+					newmsg.nr_secv = secv++;
 					for (int i = 0; i < nr_vec; ++i){
 						ss >> vec >> cost;
 						cout << "---Vecin " << vec << " cu cost " << cost << endl;
@@ -232,13 +349,7 @@ int main (int argc, char ** argv)
 						
 //						cout << "!!!!!!!!!!!!!TEST nod_id " << nod_id << endl;
 						// Trimit Database Request catre vecini
-						msg newmsg;
-						newmsg.type = 2;
-						newmsg.sender = nod_id;
-						newmsg.timp = timp;
-						newmsg.creator = nod_id;
 						newmsg.next_hop = vec;
-						newmsg.nr_secv = secv++;
 						ssout >> newmsg.payload;
 //						cout << "=========newmsg.nr_secv " << newmsg.nr_secv << endl;
 //						cout << "=========newmsg.payload [" << newmsg.payload << "]\n";
@@ -267,17 +378,12 @@ int main (int argc, char ** argv)
 					newmsg.sender= nod_id;
 					ssout >> newmsg.payload;
 					
-					if (nod_id == rut1) {
-						newmsg.next_hop = rut2;
-//						cout << "<<<<Trimit dbreq de la " << nod_id << " catre " << rut2 << endl;
-						write (pipeout, &newmsg, sizeof(msg));
-					}
-					else if (nod_id == rut2) {
-						newmsg.next_hop = rut1;
-//						cout << "<<<<Trimit dbreq de la " << nod_id << " catre " << rut1 << endl;
-						write (pipeout, &newmsg, sizeof(msg));
-					}
+					if (rut2 == nod_id)
+						rut2 = rut1;
 					
+					newmsg.next_hop = rut2;
+					cout << "<<<<Trimit dbreq de la " << nod_id << " catre " << rut2 << endl;
+					write (pipeout, &newmsg, sizeof(msg));
 				}
 				else if (mesaj.payload[0] == '3') {
 					timp = mesaj.timp;
@@ -292,8 +398,10 @@ int main (int argc, char ** argv)
 					get_vecini ( topologie, nod_id, vecini );
 					
 					// Introduc lista de vecini+costuri in ssout
+					// Structura payload:::: 1) nr_vecini; 2) vecin cost; 3) timp_creare
 					stringstream ssout (stringstream::in | stringstream::out);
-					for (int i = 0; i < vecini.size(); ++i)
+					ssout << vecini.size() << " ";
+					for (unsigned int i = 0; i < vecini.size(); ++i)
 						ssout << vecini[i].first << " " << vecini[i].second << " ";
 					
 					// Atasez si timpul de creare
@@ -302,12 +410,13 @@ int main (int argc, char ** argv)
 //					cout << "Nod " << nod_id <<" vecini costuri : {"<<ssout.str()<<"}\n";
 					
 					msg lsa;
+					lsa.type = 1;
 					lsa.creator = nod_id;
 					lsa.timp = timp;
 					lsa.sender = nod_id;
 					lsa.nr_secv = secv++;
 					ssout.getline(lsa.payload, 1400);
-					cout << "Nod " << nod_id <<" vecini costuri : {"<<lsa.payload<<"}\n";
+//					cout << "Nod " << nod_id <<" vecini costuri : {"<<lsa.payload<<"}\n";
 					
 					// Updatez topologia pentru rut1
 					if (nod_id == rut1) {
@@ -315,7 +424,7 @@ int main (int argc, char ** argv)
 						topologie[rut2][nod_id] = INF;
 						
 						
-						for (int i = 0; i < vecini.size(); ++i) {
+						for (unsigned int i = 0; i < vecini.size(); ++i) {
 							lsa.next_hop = vecini[i].first;
 							
 							write(pipeout, &lsa, sizeof(msg));
@@ -326,7 +435,7 @@ int main (int argc, char ** argv)
 						topologie[nod_id][rut1] = INF;
 						topologie[rut1][nod_id] = INF;
 						
-						for (int i = 0; i < vecini.size(); ++i) {
+						for (unsigned int i = 0; i < vecini.size(); ++i) {
 							lsa.next_hop = vecini[i].first;
 							
 							write(pipeout, &lsa, sizeof(msg));
